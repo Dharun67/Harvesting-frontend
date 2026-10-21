@@ -83,6 +83,9 @@ export interface TransporterItem {
   district: string;
   location: string;
   status: string;
+  contactPhone?: string;
+  contact_phone?: string;
+  phone?: string;
   estimated_cost_inr?: number;
 }
 
@@ -118,14 +121,30 @@ export interface IndustryBuyerItem {
 export interface BookingItem {
   id: string;
   booking_id?: string;
+  bookingId?: string;
+  title?: string;
   service_type: string;
+  booking_type?: string;
+  bookingType?: string;
   crop_type: string;
-  quantity_units: number;
+  quantity_units: number | string;
+  quantity_kg?: number;
+  quantityKg?: number;
   status: string;
   total_price_inr: number;
+  estimatedCostInr?: number;
+  formattedCost?: string;
+  from_date?: string;
+  to_date?: string;
+  duration_days?: number;
+  facility_name?: string;
+  provider_name?: string;
+  contact_phone?: string;
   service_date?: string;
   created_at: string;
   booking_date?: string;
+  date?: string;
+  tone?: string;
 }
 
 export interface AnalyticsOverview {
@@ -255,11 +274,17 @@ export const analyticsApi = {
 
 // 3. Harvests API
 export const harvestApi = {
-  list: async (params?: { crop?: string; limit?: number }) => {
+  list: async (params?: { crop?: string; crop_type?: string; state?: string; district?: string; search?: string; scope?: 'my' | 'all'; page?: number; limit?: number }) => {
     const q = new URLSearchParams();
     if (params?.crop) q.set('crop', params.crop);
+    if (params?.crop_type) q.set('crop_type', params.crop_type);
+    if (params?.state) q.set('state', params.state);
+    if (params?.district) q.set('district', params.district);
+    if (params?.search) q.set('search', params.search);
+    if (params?.scope) q.set('scope', params.scope);
+    if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
-    return request<ApiResponse<Harvest[]>>(`/harvests?${q.toString()}`);
+    return request<ApiResponse<Harvest[]> & { total?: number; page?: number; totalPages?: number; scope?: string }>(`/harvests?${q.toString()}`);
   },
   getById: async (id: string) => {
     return request<ApiResponse<Harvest>>(`/harvests/${id}`);
@@ -286,26 +311,47 @@ export const marketApi = {
       recent_live_mandi_quotes: any[];
     }>>('/markets/overview');
   },
-  prices: async (params?: { crop?: string; state?: string; district?: string; is_live?: boolean; limit?: number }) => {
+  crops: async () => {
+    return request<ApiResponse<string[]>>('/markets/crops');
+  },
+  prices: async (params?: { crop?: string; state?: string; district?: string; search?: string; is_live?: boolean; page?: number; limit?: number }) => {
     const q = new URLSearchParams();
     if (params?.crop) q.set('crop', params.crop);
     if (params?.state) q.set('state', params.state);
     if (params?.district) q.set('district', params.district);
+    if (params?.search) q.set('search', params.search);
     if (params?.is_live !== undefined) q.set('is_live', String(params.is_live));
+    if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
-    return request<ApiResponse<MarketPriceRecord[]>>(`/markets/prices?${q.toString()}`);
+    return request<ApiResponse<MarketPriceRecord[]> & { total?: number; page?: number; totalPages?: number }>(`/markets/prices?${q.toString()}`);
   },
   forecast: async (data: { crop_type: string; state?: string; district?: string; horizon_days?: number }) => {
     return request<ApiResponse<{
       crop_type: string;
+      market_name?: string;
+      district?: string;
+      state?: string;
+      price_date?: string;
       current_price_inr_per_quintal: number;
-      forecast_price_inr_per_quintal: number;
-      predicted_change_percentage: number;
-      horizon_days: number;
-      model_type: string;
-      evaluation_metrics: { test_mae_inr: number; accuracy_improvement_vs_baseline_pct: number };
-      is_synthetic_training_data: boolean;
-      disclaimer: string;
+      current_min_price_inr_per_quintal?: number;
+      current_max_price_inr_per_quintal?: number;
+      forecast_price_inr_per_quintal?: number;
+      predicted_modal_price_inr_per_quintal?: number;
+      predicted_min_price_inr_per_quintal?: number;
+      predicted_max_price_inr_per_quintal?: number;
+      expected_gain_inr_per_quintal?: number;
+      predicted_change_percentage?: number;
+      price_change_pct?: number;
+      horizon_days?: number;
+      forecast_horizon_days?: number;
+      model_type?: string;
+      evaluation_metrics?: { test_mae_inr?: number; accuracy_improvement_vs_baseline_pct?: number };
+      is_synthetic_training_data?: boolean;
+      confidence_score?: number;
+      price_band?: { min: number; modal: number; max: number };
+      current_band?: { min: number; modal: number; max: number };
+      mandi_details?: { market: string; district: string; state: string; date: string };
+      disclaimer?: string;
     }>>('/markets/forecast', {
       method: 'POST',
       body: JSON.stringify(data),
