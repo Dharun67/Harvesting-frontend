@@ -1,5 +1,4 @@
 export type ApiMode = 'demo' | 'live';
-
 export interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -7,7 +6,6 @@ export interface ApiResponse<T> {
   meta?: Record<string, unknown>;
   count?: number;
 }
-
 export interface User {
   id: string;
   fullName: string;
@@ -16,7 +14,6 @@ export interface User {
   location?: string;
   phone?: string;
 }
-
 export interface Harvest {
   id: string;
   harvestId?: string;
@@ -35,7 +32,6 @@ export interface Harvest {
   status: string;
   tone?: string;
 }
-
 export interface MarketPriceRecord {
   id: string;
   crop: string;
@@ -50,24 +46,28 @@ export interface MarketPriceRecord {
   is_live_data: boolean;
   trend_30d?: string;
 }
-
 export interface WarehouseItem {
   id: string;
   warehouseId?: string;
+  warehouse_id?: string;
   name: string;
   warehouseName?: string;
   facilityType: string;
+  storageType?: string;
   totalCapacityMt: number;
   availableCapacityMt: number;
+  availableCapacityKg?: number;
+  capacityKg?: number;
   ratePerDayInr: number;
+  ratePerKgPerDay?: number;
   state: string;
   district: string;
   location: string;
   isOperational: boolean;
+  temperatureControlled?: boolean;
   status?: string;
   score?: number;
 }
-
 export interface TransporterItem {
   id: string;
   transportId?: string;
@@ -88,22 +88,32 @@ export interface TransporterItem {
   phone?: string;
   estimated_cost_inr?: number;
 }
-
 export interface BiomassItem {
   id: string;
   listingId?: string;
+  listing_id?: string;
   cropType: string;
+  crop_type?: string;
   residueType: string;
+  residue_type?: string;
   quantityTons: number;
+  quantityTonnes?: number;
+  quantityKg?: number;
+  quantity_kg?: number;
   pricePerTonInr: number;
+  askingPricePerKg?: number;
+  asking_price_inr_per_kg?: number;
   moisturePercentage: number;
+  moisturePct?: number;
+  moisture_pct?: number;
   status: string;
   district: string;
   state: string;
   location: string;
   availabilityDate: string;
+  availableFrom?: string;
+  condition?: string;
 }
-
 export interface IndustryBuyerItem {
   id: string;
   buyer_id?: string;
@@ -117,7 +127,6 @@ export interface IndustryBuyerItem {
   contact_phone: string;
   is_verified: boolean;
 }
-
 export interface BookingItem {
   id: string;
   booking_id?: string;
@@ -146,7 +155,6 @@ export interface BookingItem {
   date?: string;
   tone?: string;
 }
-
 export interface AnalyticsOverview {
   kpis: {
     harvests_registered: string;
@@ -295,6 +303,20 @@ export const harvestApi = {
       body: JSON.stringify(data),
     });
   },
+  assessQuality: async (data: { crop_type: string; moisture_pct?: number; physical_condition?: string; image_base64?: string }) => {
+    return request<ApiResponse<{
+      quality_grade: string;
+      estimated_moisture_pct: number;
+      spoilage_risk: 'low' | 'medium' | 'high';
+      defect_analysis: string;
+      recommended_action: string;
+      price_multiplier: number;
+      model_used?: string;
+    }>>('/harvests/assess-quality', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // 4. Market Intelligence API
@@ -357,6 +379,24 @@ export const marketApi = {
       body: JSON.stringify(data),
     });
   },
+  regionalDemand: async (params: { crop_type: string; state?: string; district?: string }) => {
+    const q = new URLSearchParams();
+    q.set('crop_type', params.crop_type);
+    if (params.state) q.set('state', params.state);
+    if (params.district) q.set('district', params.district);
+    return request<ApiResponse<{
+      crop_type: string;
+      state: string;
+      district: string;
+      total_buyer_demand_mt: number;
+      demand_supply_ratio: number;
+      market_sentiment: string;
+      demand_intensity: string;
+      export_pull_index: number;
+      recommended_market_window: string;
+      top_procuring_industries: Array<{ company_name: string; buyer_category: string; required_mt: number; offer_price_per_kg: number }>;
+    }>>(`/markets/regional-demand?${q.toString()}`);
+  },
 };
 
 // 5. Decision Intelligence API
@@ -385,9 +425,10 @@ export const recommendationsApi = {
 
 // 6. Warehouses API
 export const warehouseApi = {
-  list: async (params?: { facility_type?: string; state?: string; district?: string; limit?: number }) => {
+  list: async (params?: { facility_type?: string; temp_controlled?: boolean; state?: string; district?: string; limit?: number }) => {
     const q = new URLSearchParams();
     if (params?.facility_type) q.set('facility_type', params.facility_type);
+    if (params?.temp_controlled !== undefined) q.set('temp_controlled', String(params.temp_controlled));
     if (params?.state) q.set('state', params.state);
     if (params?.district) q.set('district', params.district);
     if (params?.limit) q.set('limit', String(params.limit || 20));
@@ -400,6 +441,12 @@ export const warehouseApi = {
       ranked_warehouses: any[];
     }>>('/warehouses/recommend', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  updateCapacity: async (id: string, data: { available_capacity_mt?: number; available_capacity_kg?: number; availability_status?: string; rate_inr_per_kg_per_day?: number }) => {
+    return request<ApiResponse<any>>(`/warehouses/${id}/capacity`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   },
@@ -428,6 +475,12 @@ export const logisticsApi = {
       ranked_transporters: any[];
     }>>('/logistics/quote', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  updateAvailability: async (id: string, data: { availability_status?: string; rate_inr_per_km?: number; base_fee_inr?: number }) => {
+    return request<ApiResponse<any>>(`/logistics/transporters/${id}/availability`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   },
@@ -463,25 +516,44 @@ export const biomassApi = {
 
 // 9. Industry Buyers API
 export const buyersApi = {
-  list: async (params?: { crop_type?: string; state?: string; district?: string; limit?: number }) => {
+  list: async (params?: { category?: string; buyer_type?: string; crop_type?: string; state?: string; district?: string; search?: string; limit?: number }) => {
     const q = new URLSearchParams();
+    if (params?.category) q.set('category', params.category);
+    if (params?.buyer_type) q.set('buyer_type', params.buyer_type);
     if (params?.crop_type) q.set('crop_type', params.crop_type);
+    if (params?.search) q.set('search', params.search);
     if (params?.state) q.set('state', params.state);
     if (params?.district) q.set('district', params.district);
     if (params?.limit) q.set('limit', String(params.limit || 20));
     return request<ApiResponse<IndustryBuyerItem[]>>(`/buyers?${q.toString()}`);
   },
+  postDemand: async (data: any) => {
+    return request<ApiResponse<any>>('/buyers/demand', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // 10. Bookings API
 export const bookingsApi = {
-  list: async () => {
-    return request<ApiResponse<BookingItem[]>>('/bookings');
+  list: async (params?: { type?: string; status?: string; include_demo?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.type) q.set('type', params.type);
+    if (params?.status) q.set('status', params.status);
+    if (params?.include_demo) q.set('include_demo', 'true');
+    return request<ApiResponse<BookingItem[]>>(`/bookings?${q.toString()}`);
   },
   create: async (data: any) => {
     return request<ApiResponse<BookingItem>>('/bookings', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+  updateStatus: async (id: string, status: string) => {
+    return request<ApiResponse<any>>(`/bookings/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     });
   },
 };
